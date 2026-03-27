@@ -1,15 +1,77 @@
 ---
 name: capcut-video
-description: Crear videos completos en CapCut Desktop programaticamente — de principio a fin. Desde crear draft hasta exportar MP4. Usa VectCutAPI (localhost:9002) para montar video con clips, musica, textos animados, transiciones, efectos, keyframes, subtitulos. Luego exporta automaticamente con Ctrl+E + pywinauto.
+description: Crear videos completos en CapCut Desktop programaticamente — de principio a fin. Desde crear draft hasta exportar MP4. Usa VectCutAPI para montar video con clips, musica, textos animados, transiciones, efectos, keyframes, subtitulos. Luego exporta con Ctrl+E + pywinauto. Se auto-instala si no existe.
 user_invocable: true
 ---
 
 # CapCut Video — Crear Videos de Principio a Fin
 
+## PASO 0: Auto-instalacion (ejecutar SIEMPRE primero)
+
+Claude DEBE ejecutar este script antes de hacer cualquier cosa. Detecta si VectCutAPI esta instalado y si no, lo instala y arranca automaticamente.
+
+```python
+import subprocess, os, sys, time, requests
+
+VECTCUT_DIR = os.path.expanduser("~/vectcut-api")
+VENV_DIR = os.path.join(VECTCUT_DIR, "venv")
+VENV_PYTHON = os.path.join(VENV_DIR, "Scripts" if sys.platform == "win32" else "bin", "python")
+PORT = 9002
+
+def is_server_running():
+    try:
+        r = requests.get(f"http://localhost:{PORT}/get_intro_animation_types", timeout=3)
+        return r.status_code == 200
+    except:
+        return False
+
+def install_vectcut():
+    print("[capcut-video] Installing VectCutAPI...")
+    if not os.path.exists(VECTCUT_DIR):
+        subprocess.run(["git", "clone", "https://github.com/sun-guannan/VectCutAPI.git", VECTCUT_DIR], check=True)
+    if not os.path.exists(VENV_DIR):
+        subprocess.run([sys.executable, "-m", "venv", VENV_DIR], check=True)
+    pip = os.path.join(VENV_DIR, "Scripts" if sys.platform == "win32" else "bin", "pip")
+    subprocess.run([pip, "install", "-q", "-r", os.path.join(VECTCUT_DIR, "requirements.txt")], check=True)
+    mcp_req = os.path.join(VECTCUT_DIR, "requirements-mcp.txt")
+    if os.path.exists(mcp_req):
+        subprocess.run([pip, "install", "-q", "-r", mcp_req], check=True)
+    subprocess.run([pip, "install", "-q", "pyautogui", "pywinauto", "pillow", "psutil"], check=True)
+    cfg = os.path.join(VECTCUT_DIR, "config.json")
+    cfg_example = os.path.join(VECTCUT_DIR, "config.json.example")
+    if not os.path.exists(cfg) and os.path.exists(cfg_example):
+        import shutil
+        shutil.copy(cfg_example, cfg)
+    print("[capcut-video] VectCutAPI installed.")
+
+def start_server():
+    print(f"[capcut-video] Starting server on port {PORT}...")
+    server_py = os.path.join(VECTCUT_DIR, "capcut_server.py")
+    subprocess.Popen([VENV_PYTHON, server_py], cwd=VECTCUT_DIR,
+                     env={**os.environ, "FLASK_RUN_PORT": str(PORT)})
+    for i in range(10):
+        time.sleep(2)
+        if is_server_running():
+            print(f"[capcut-video] Server running on localhost:{PORT}")
+            return True
+    print("[capcut-video] ERROR: Server did not start")
+    return False
+
+# --- MAIN ---
+if is_server_running():
+    print(f"[capcut-video] VectCutAPI already running on localhost:{PORT}")
+else:
+    if not os.path.exists(VECTCUT_DIR):
+        install_vectcut()
+    start_server()
+```
+
+Despues de ejecutar el Paso 0, el API esta disponible en `http://localhost:9002`.
+
 ## REQUISITOS
-- VectCutAPI corriendo: `C:\Carlos\tools\start-capcut-api.bat` (puerto 9002)
-- CapCut Desktop abierto
-- Python: `pip install pyautogui pywinauto pillow psutil requests`
+- CapCut Desktop instalado y abierto
+- Python 3.10+
+- Git (para clonar VectCutAPI la primera vez)
 
 ## API BASE
 ```
