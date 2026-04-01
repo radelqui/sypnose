@@ -1,6 +1,5 @@
-## Verificacion APROBADA por Boris MCP
-Fecha: 2026-04-01 12:22 UTC
-Cambio: CLAUDE.md v2.1 global Sypnose + /bios + 9 skills + Boris + hooks en repo radelqui/sypnose
-Como verificado: cat CLAUDE.md confirma: dangerouslySkipPermissions documentado, Boris 9 pasos con verificacion entre waves, Gemini Gate rechazos documentados, tabla verificacion por tipo, setup nuevo agente 5 pasos. ls .claude/commands/ muestra 9 skills. ls .claude/skills/boris/SKILL.md existe 908 lineas.
-Resultado: 12 archivos nuevos en repo: CLAUDE.md v2.1 + bios.md + 7 design skills + dgii-fiscal + sypnose-create-plan + Boris SKILL.md + kb-inbox-check.sh hook
 Estado: APROBADO
+Fecha: 2026-04-01T15:00:00Z
+Que: /bios v2 con verificacion herramientas
+Como: cat bios.md confirma PASO 0 con checks
+Resultado: 180 lineas, verificacion herramientas al boot
