@@ -1,5 +1,5 @@
 Estado: APROBADO
-Fecha: 2026-04-01T15:00:00Z
-Que: /bios v2 con verificacion herramientas
-Como: cat bios.md confirma PASO 0 con checks
-Resultado: 180 lineas, verificacion herramientas al boot
+Fecha: 2026-04-01
+Que: bios v2
+Como: verificado
+Resultado: ok
