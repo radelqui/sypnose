@@ -287,3 +287,21 @@ sm-tmux valida con Gemini automáticamente. Si rechaza, corregir y reenviar.
 - Repo: github.com/radelqui/sypnose
 - Manual completo: MANUAL-SYPNOSE.md (6100 líneas, 10 partes)
 - Documentación A2A + MsgHub: PART-11-A2A-CHANNELS.md
+
+## Auto-sync de skills y commands
+
+Para mantener todos los proyectos actualizados automáticamente:
+
+```bash
+# Descargar script de sync
+curl -o ~/scripts/sync-sypnose.sh https://raw.githubusercontent.com/radelqui/sypnose/main/sync-sypnose.sh
+chmod +x ~/scripts/sync-sypnose.sh
+
+# Añadir al crontab (cada 6 horas)
+(crontab -l 2>/dev/null | grep -v "sync-sypnose"; echo "0 */6 * * * bash ~/scripts/sync-sypnose.sh >> ~/logs/sypnose-sync.log 2>&1") | crontab -
+
+# Ejecutar manualmente
+bash ~/scripts/sync-sypnose.sh
+```
+
+El script sincroniza comandos, skills y hooks desde este repo a todos los proyectos configurados. Preserva archivos modificados localmente (no-overwrite). Notifica por Telegram si hay conflictos.
