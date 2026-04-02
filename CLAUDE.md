@@ -328,3 +328,32 @@ ssh -L 18791:localhost:18791 -L 8317:localhost:8317 -L 8095:localhost:8095 -p 20
 claude
 /bios
 ```
+
+---
+
+## LEY: SIN PRUEBA NO EXISTIÓ
+
+**Sin prueba no existió el trabajo.** Cada fix debe tener:
+- **Línea exacta** del archivo que cambió (ej: `src/auth.ts:42`)
+- **Test output** real — no "debería funcionar", el output literal del comando
+- **Log de producción** — curl response, docker logs, systemctl status con output copiado
+
+Si no tienes los tres → el trabajo no está hecho. No hagas commit. No le digas a Carlos que terminaste.
+
+---
+
+## LEY: BORIS GUARDA ESTADO EN CADA COSA
+
+Cada acción importante tiene sus 2 líneas de estado:
+
+```
+boris_save_state progress="[qué completé]" next_step="[qué voy a hacer ahora]"
+```
+
+Cuándo llamarlo:
+- Después de cada Wave completada
+- Cada 15 minutos de trabajo
+- Antes de cualquier pausa
+- Cuando descubres algo inesperado
+
+Sin `boris_save_state` → si se corta el contexto, el próximo arquitecto empieza de cero.
