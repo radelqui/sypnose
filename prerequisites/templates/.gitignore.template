@@ -1,0 +1,6 @@
+node_modules/
+.env
+.brain/last-verification.md
+.brain/last-verification.md.used
+*.log
+.DS_Store

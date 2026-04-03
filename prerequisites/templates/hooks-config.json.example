@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [{"type": "command", "command": "bash .claude/hooks/boris-session-start.sh"}],
+    "PreCompact": [{"type": "command", "command": "bash .claude/hooks/boris-pre-compact.sh"}],
+    "Stop": [{"type": "command", "command": "bash .claude/hooks/boris-stop.sh"}],
+    "UserPromptSubmit": [{"type": "command", "command": "bash .claude/hooks/kb-inbox-check.sh"}],
+    "PreToolUse": [
+      {"type": "command", "command": "bash .claude/hooks/boris-verification-gate.sh", "matcher": "Bash"},
+      {"type": "command", "command": "bash .claude/hooks/boris-protect-files.sh", "matcher": "Write|Edit|Read|Bash"}
+    ]
+  }
+}

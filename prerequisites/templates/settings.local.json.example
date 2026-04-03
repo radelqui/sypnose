@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)", "Read(*)", "Edit(*)", "Write(*)",
+      "Glob(*)", "Grep(*)", "MultiEdit(*)",
+      "mcp__*", "Agent(*)", "TodoWrite(*)", "Skill(*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo reboot*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  }
+}

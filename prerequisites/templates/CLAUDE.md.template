@@ -1,0 +1,26 @@
+# [NOMBRE_PROYECTO] — Arquitecto Sypnose
+
+## FLUJO BORIS (OBLIGATORIO)
+
+### ANTES de trabajar:
+1. git pull origin $(git branch --show-current)
+2. Lee .brain/task.md — si hay tarea pendiente, CONTINUA
+
+### EJECUCION:
+- DELEGA con Agent subagent_type="general-purpose" (Sonnet, NUNCA Opus)
+- Guarda progreso en .brain/session-state.md cada 15-20 min
+
+### VERIFICACION (DESPUES DE CADA CAMBIO):
+Llama boris_verify del MCP con evidencia concreta.
+SIN ESTO, EL HOOK BLOQUEA TU COMMIT.
+
+### AL TERMINAR CUALQUIER TRABAJO:
+1. boris_verify con evidencia real
+2. kb_save key=resultado-[tarea]-[fecha] category=notification project=[proyecto]
+3. Preguntate: que mas podria mejorar? Escribe sugerencias en el KB.
+4. PARAR. No actues fuera del plan.
+
+## COMUNICACION
+- Reportas al SM via: kb_save category=notification
+- El SM te envia trabajo via: kb_read (el te dice el key)
+- NUNCA actues sin un plan del SM

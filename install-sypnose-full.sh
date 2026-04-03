@@ -121,7 +121,38 @@ elif [ -d "$PREREQ_KB/src" ]; then
     sleep 3
     curl -sf http://localhost:18791/health &>/dev/null && ok "KB instalado y corriendo" || fail "KB no responde"
 else
-    fail "KB no activo y prerequisites/knowledge-hub/ no encontrado"
+    warn "Knowledge Hub NO detectado y prerequisites/knowledge-hub/src no encontrado"
+    KB_SRC="$SCRIPT_DIR/prerequisites/knowledge-hub"
+    if [ -f "$KB_SRC/src/server.js" ]; then
+        info "Instalando Knowledge Hub desde prerequisites/..."
+        mkdir -p /opt/knowledge-hub/data
+        cp -r "$KB_SRC"/src /opt/knowledge-hub/
+        cp -r "$KB_SRC"/scripts /opt/knowledge-hub/ 2>/dev/null || true
+        cp "$KB_SRC"/package.json /opt/knowledge-hub/
+        cp "$KB_SRC"/run-mcp.sh /opt/knowledge-hub/ 2>/dev/null || true
+        chmod +x /opt/knowledge-hub/run-mcp.sh 2>/dev/null || true
+        chown -R "$USER":"$USER" /opt/knowledge-hub
+        cd /opt/knowledge-hub && su -c "/usr/bin/npm install --silent" "$USER" || warn "npm install fallo en knowledge-hub"
+        # Instalar systemd
+        if [ -f "$KB_SRC/knowledge-hub.service" ] && [ ! -f /etc/systemd/system/knowledge-hub.service ]; then
+            sed -e "s|User=.*|User=$USER|" -e "s|Group=.*|Group=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$KB_SRC/knowledge-hub.service" \
+                > /etc/systemd/system/knowledge-hub.service
+            systemctl daemon-reload
+            systemctl enable knowledge-hub
+            systemctl start knowledge-hub
+            sleep 3
+        fi
+        # Verificar
+        if curl -sf http://localhost:18791/health &>/dev/null; then
+            ok "Knowledge Hub instalado y corriendo en :18791"
+        else
+            warn "Knowledge Hub instalado pero no responde — verificar logs: journalctl -u knowledge-hub"
+        fi
+    else
+        echo ""
+        read -r -p "  Continuar sin Knowledge Hub? (s/N): " CONT
+        [[ "$CONT" =~ ^[sS]$ ]] || fail "Instala el Knowledge Hub primero."
+    fi
 fi
 
 # ============================================================
@@ -347,6 +378,44 @@ if [ -d "$BORIS_SRC" ] && ls "$BORIS_SRC"/*.sh &>/dev/null; then
 else
     warn "Boris hooks no encontrados en prerequisites/boris/"
     mkdir -p "$BORIS_TPL"
+fi
+
+# Copiar commands si existen en el repo
+CMD_SRC="$SCRIPT_DIR/.claude/commands"
+if [ -d "$CMD_SRC" ]; then
+    mkdir -p "$BORIS_TPL/commands"
+    cp "$CMD_SRC"/*.md "$BORIS_TPL/commands/" 2>/dev/null
+    ok "Commands copiados a templates/boris/commands/"
+else
+    warn "Commands no encontrados en .claude/commands/"
+fi
+
+# Copiar skills si existen
+SKILLS_SRC="$SCRIPT_DIR/skills"
+if [ -d "$SKILLS_SRC" ]; then
+    mkdir -p "$BORIS_TPL/skills"
+    cp -r "$SKILLS_SRC"/* "$BORIS_TPL/skills/" 2>/dev/null
+    ok "Skills copiados a templates/boris/skills/"
+else
+    warn "Skills no encontrados en skills/"
+fi
+
+info "Para activar commands en cada agente:"
+echo "  cp -r /opt/sypnose/templates/boris/hooks/ /home/$USER/<proyecto>/.claude/hooks/"
+echo "  cp -r /opt/sypnose/templates/boris/commands/ /home/$USER/<proyecto>/.claude/commands/"
+echo "  cp -r /opt/sypnose/templates/boris/skills/ /home/$USER/<proyecto>/.claude/skills/"
+
+# Instalar Boris MCP server
+BORIS_MCP="$BORIS_SRC/boris_mcp.py"
+if [ -f "$BORIS_MCP" ]; then
+    BORIS_DST="$HOME_DIR/.boris"
+    su -c "mkdir -p $BORIS_DST" "$USER"
+    cp "$BORIS_MCP" "$BORIS_DST/boris_mcp.py"
+    chown "$USER":"$USER" "$BORIS_DST/boris_mcp.py"
+    # Instalar dependencias Python
+    pip install mcp pydantic --break-system-packages -q 2>/dev/null || warn "pip install mcp pydantic fallo — instalar manualmente"
+    ok "Boris MCP instalado en $BORIS_DST/boris_mcp.py"
+    info "  Activar con: claude mcp add boris --scope user -- python3 ~/.boris/boris_mcp.py"
 fi
 
 # ============================================================
