@@ -1,0 +1,23 @@
+{
+  "name": "sypnose",
+  "version": "5.2.0",
+  "description": "SYPNOSE Multi-Agent Coordinator",
+  "main": "core/loop.js",
+  "scripts": {
+    "start": "node bin/start.js",
+    "test": "node -e \"require('./core/loop').smokeTest()\"",
+    "test:full": "node scripts/test-full.js",
+    "janitor": "node scripts/kb-janitor.js",
+    "dream": "node scripts/autodream-cli.js",
+    "dashboard": "node scripts/kb-dashboard.js",
+    "sse": "node server/sse-server.js",
+    "health": "bash scripts/verify-kb-integrity.sh",
+    "prepack": "npm run test"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "clients": [
+    { "id": "gestoriard", "tmux_session": "gestion-contadoresrd", "project_dir": "/home/gestoria/gestion-contadoresrd", "client_name": "ContadoresRD", "industry": "accounting" },
+    { "id": "dgii", "tmux_session": "dgii", "project_dir": "/home/gestoria/gestion-contadoresrd", "client_name": "DGII Scraper", "industry": "tax" },
+    { "id": "iatrader-rust", "tmux_session": "iatrader-rust", "project_dir": "/home/gestoria/IATRADER-RUST", "client_name": "IATrader Rust", "industry": "trading" },
+    { "id": "facturaia", "tmux_session": "FacturaIA", "project_dir": "/home/gestoria/eas-builds/FacturaScannerApp", "client_name": "FacturaIA", "industry": "invoicing" },
+    { "id": "seguridad", "tmux_session": "seguridad-server", "project_dir": "/home/gestoria/seguridad-server", "client_name": "Seguridad Server", "industry": "security" },
+    { "id": "jobhunter", "tmux_session": "jobhunter", "project_dir": "/home/gestoria/jobhunter", "client_name": "JobHunter", "industry": "recruitment" }
+  ]
+}

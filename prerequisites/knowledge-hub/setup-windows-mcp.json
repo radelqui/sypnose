@@ -1,0 +1,8 @@
+{
+  "_instructions": "Add this to your mcpServers in C:\\Users\\carlo\\.claude.json or claude_desktop_config.json",
+  "knowledge-hub": {
+    "command": "ssh",
+    "args": ["-p", "2024", "-o", "StrictHostKeyChecking=no", "gestoria@217.216.48.91", "node", "/opt/knowledge-hub/src/mcp-server.js"],
+    "env": {}
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "sypnose-hub",
+  "version": "1.0.0",
+  "description": "SSE Bridge sobre Knowledge Hub — notificaciones live para Sypnose",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=CLIProxyAPI Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/gestoria/cliproxyapi
+ExecStart=/home/gestoria/cliproxyapi/cli-proxy-api
+Restart=always
+RestartSec=10
+Environment=HOME=/home/gestoria
+
+[Install]
+WantedBy=default.target

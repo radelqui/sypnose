@@ -1,0 +1,39 @@
+# Sypnose Agent — wildcard virtual host
+# Cada subdominio {cliente}.sypnose.DOMINIO apunta a ttyd del usuario
+
+server {
+    listen 8888;
+    server_name ~^(?<client>[a-z0-9\-]+)\.sypnose\..*;
+
+    # Proxy a ttyd del cliente (cada cliente tendrá su puerto)
+    # Por ahora apunta al ttyd global en :7681
+    location / {
+        proxy_pass http://127.0.0.1:7681;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 7d;
+    }
+
+    # sypnose-hub SSE Bridge
+    location /_sypnose/ {
+        proxy_pass http://127.0.0.1:8095/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;  # 24h para SSE
+        chunked_transfer_encoding off;
+    }
+}
+
+# Default server — bloquear acceso directo por IP
+server {
+    listen 8888 default_server;
+    server_name _;
+    return 444;
+}

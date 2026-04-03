@@ -1,0 +1,15 @@
+[Unit]
+Description=SYPNOSE SSE v5.2
+After=sypnose-coordinator.service
+
+[Service]
+Type=simple
+User=gestoria
+WorkingDirectory=/opt/sypnose
+ExecStart=/usr/bin/node /opt/sypnose/server/sse-server.js
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/sypnose/.env
+
+[Install]
+WantedBy=multi-user.target

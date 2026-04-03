@@ -1,0 +1,13 @@
+*.map
+*.map.gz
+.env
+.env.*
+!.env.example
+coverage/
+.nyc_output/
+CLAUDE.local.md
+CLAUDE.private.md
+secrets.json
+*.key
+*.pem
+config/clients.json

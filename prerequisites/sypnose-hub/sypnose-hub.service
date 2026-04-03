@@ -1,0 +1,18 @@
+[Unit]
+Description=Sypnose Hub — SSE Bridge sobre Knowledge Hub
+After=network.target
+
+[Service]
+Type=simple
+User=gestoria
+WorkingDirectory=/home/shared/sypnose-hub
+ExecStart=/usr/bin/node /home/shared/sypnose-hub/index.js
+ExecStartPost=/bin/bash -c 'sleep 2 && curl -sf http://localhost:8095/health > /dev/null || exit 1'
+EnvironmentFile=/home/gestoria/.config/sypnose-hub.env
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target

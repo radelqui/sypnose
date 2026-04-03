@@ -1,0 +1,17 @@
+[Unit]
+Description=Sypnose Channel — MCP SSE Bridge
+After=sypnose-hub.service
+Wants=sypnose-hub.service
+
+[Service]
+Type=simple
+User=gestoria
+WorkingDirectory=/home/shared/sypnose-hub/channel
+ExecStart=/home/gestoria/.bun/bin/bun run /home/shared/sypnose-hub/channel/sypnose-channel.ts
+Restart=always
+RestartSec=5
+Environment=SYPNOSE_HUB_URL=http://localhost:8095
+Environment=SYPNOSE_HUB_TOKEN=CAMBIAR_GENERAR_CON_openssl_rand_hex_32
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,118 @@
+# CLIProxy (SypnoseProxy) — config.yaml.example
+# Copiar a config.yaml y reemplazar TODOS los placeholders con tus API keys reales.
+
+# Server host/interface to bind to.
+# Use "127.0.0.1" to restringir al localhost (recomendado en servidor)
+host: "127.0.0.1"
+
+# Server port
+port: 8317
+
+# TLS settings for HTTPS
+tls:
+  enable: false
+  cert: ""
+  key: ""
+
+# Management API settings
+remote-management:
+  allow-remote: false
+  secret-key: ""
+  disable-control-panel: false
+  panel-github-repository: "https://github.com/router-for-me/Cli-Proxy-API-Management-Center"
+
+# Authentication directory
+auth-dir: "~/.cli-proxy-api"
+
+# API keys para que los clientes se autentiquen contra CLIProxy
+api-keys:
+  - "sk-PLACEHOLDER-key-1"
+  - "sk-PLACEHOLDER-key-2"
+
+# Enable debug logging
+debug: false
+
+commercial-mode: false
+logging-to-file: false
+logs-max-total-size-mb: 0
+usage-statistics-enabled: false
+proxy-url: ""
+force-model-prefix: false
+request-retry: 4
+max-retry-interval: 15
+
+quota-exceeded:
+  switch-project: true
+  switch-preview-model: true
+
+routing:
+  strategy: "round-robin"
+
+ws-auth: false
+nonstream-keepalive-interval: 0
+
+streaming:
+  keepalive-seconds: 15
+  bootstrap-retries: 1
+
+codex-instructions-enabled: false
+
+# OpenAI-compatible providers — ejemplos
+openai-compatibility:
+  - name: "perplexity"
+    base-url: "http://localhost:8318/v1"
+    api-key-entries:
+      - api-key: "pplx-sk-PLACEHOLDER"
+    models:
+      - name: "sonar"
+      - name: "sonar-pro"
+      - name: "sonar-reasoning"
+      - name: "sonar-deep-research"
+
+  - name: "groq"
+    base-url: "https://api.groq.com/openai/v1"
+    api-key-entries:
+      - api-key: "gsk_PLACEHOLDER"
+    models:
+      - name: "llama-3.3-70b-versatile"
+        alias: "llama-3.3-70b"
+      - name: "meta-llama/llama-4-scout-17b-16e-instruct"
+        alias: "llama-4-scout"
+      - name: "moonshotai/kimi-k2-instruct"
+        alias: "kimi-k2"
+
+  - name: "cerebras"
+    base-url: "https://api.cerebras.ai/v1"
+    api-key-entries:
+      - api-key: "csk-PLACEHOLDER"
+    models:
+      - name: "qwen-3-235b-a22b-instruct-2507"
+        alias: "cerebras-qwen3-235b"
+      - name: "llama3.1-8b"
+        alias: "cerebras-llama-8b"
+
+  - name: "openrouter"
+    base-url: "https://openrouter.ai/api/v1"
+    api-key-entries:
+      - api-key: "sk-or-v1-PLACEHOLDER"
+    models:
+      - name: "meta-llama/llama-3.3-70b-instruct:free"
+        alias: "openrouter-llama-70b"
+      - name: "deepseek/deepseek-chat-v3-0324"
+        alias: "deepseek-v3.2"
+      - name: "deepseek/deepseek-r1"
+        alias: "deepseek-r1"
+
+# Aliases de modelo OAuth (canales: antigravity, gemini-cli, vertex, aistudio, claude, codex)
+oauth-model-alias:
+  antigravity:
+    - name: "gemini-3-pro-high"
+      alias: "gemini-3-pro-preview"
+    - name: "gemini-3-flash"
+      alias: "gemini-3-flash-preview"
+    - name: "claude-sonnet-4-5"
+      alias: "gemini-claude-sonnet-4-5"
+    - name: "claude-sonnet-4-5-thinking"
+      alias: "gemini-claude-sonnet-4-5-thinking"
+    - name: "claude-opus-4-5-thinking"
+      alias: "gemini-claude-opus-4-5-thinking"

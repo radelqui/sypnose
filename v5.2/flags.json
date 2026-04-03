@@ -1,0 +1,10 @@
+{
+  "HEALTH_MONITORING": { "enabled": true },
+  "PROACTIVE": { "enabled": false, "config": { "stale_hours": 24, "auto_restart": true } },
+  "MAGIC_DOCS": { "enabled": false },
+  "MEMORY_DREAM": { "enabled": true, "config": { "min_hours": 24, "min_sessions": 5 } },
+  "ULTRAPLAN": { "enabled": false },
+  "WEBHOOK": { "enabled": true },
+  "SESSION_RECORDING": { "enabled": true },
+  "COST_ALERTS": { "enabled": true, "config": { "daily_limit": 5.00 } }
+}
