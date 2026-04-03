@@ -134,9 +134,17 @@ else
     CDIR="$SCRIPT_DIR/prerequisites/cliproxy"
     if [ -f "$CDIR/cli-proxy-api" ]; then
         mkdir -p /home/$USER/cliproxyapi/logs
-        cp "$CDIR"/cli-proxy-api "$CDIR"/config.yaml /home/$USER/cliproxyapi/
+        cp "$CDIR"/cli-proxy-api /home/$USER/cliproxyapi/
+        [ -f "$CDIR/config.yaml.example" ] && cp "$CDIR/config.yaml.example" /home/$USER/cliproxyapi/config.yaml
+        [ -f "$CDIR/config.yaml" ] && cp "$CDIR/config.yaml" /home/$USER/cliproxyapi/config.yaml
         chmod +x /home/$USER/cliproxyapi/cli-proxy-api
         chown -R "$USER":"$USER" /home/$USER/cliproxyapi
+        # Instalar systemd service
+        if [ -f "$CDIR/cliproxyapi.service" ] && [ ! -f /etc/systemd/system/cliproxyapi.service ]; then
+            sed -e "s|User=.*|User=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$CDIR/cliproxyapi.service" \
+                > /etc/systemd/system/cliproxyapi.service
+            ok "cliproxyapi.service instalado"
+        fi
         warn "CLIProxy copiado — EDITAR config.yaml con tus API keys"
     else
         warn "CLIProxy binario no encontrado. Descargar de GitHub Releases."
@@ -149,16 +157,19 @@ fi
 # ============================================================
 info "PASO 4: Instalar Sypnose v5.2 en /opt/sypnose/"
 
-# Encontrar el tarball (preferir corrected)
+# Preferir copiar desde v5.2/ del repo, fallback a tarball
+V52_DIR="$SCRIPT_DIR/v5.2"
 TARBALL=""
-if [ -f "$SCRIPT_DIR/sypnose-v52-corrected.tar.gz" ]; then
+if [ -d "$V52_DIR/core" ] && [ -f "$V52_DIR/core/loop.js" ]; then
+    ok "Usando directorio v5.2/ del repo (archivos corregidos)"
+elif [ -f "$SCRIPT_DIR/sypnose-v52-corrected.tar.gz" ]; then
     TARBALL="$SCRIPT_DIR/sypnose-v52-corrected.tar.gz"
     ok "Usando paquete corregido: sypnose-v52-corrected.tar.gz"
 elif [ -f "$SCRIPT_DIR/sypnose-v52.tar.gz" ]; then
     TARBALL="$SCRIPT_DIR/sypnose-v52.tar.gz"
     warn "Usando paquete original (no corregido): sypnose-v52.tar.gz"
 else
-    fail "No se encontro ningun tarball sypnose-v52*.tar.gz en $SCRIPT_DIR"
+    fail "No se encontro v5.2/ ni tarball en $SCRIPT_DIR"
 fi
 
 # Backup si ya existe instalacion previa
@@ -169,27 +180,31 @@ if [ -d /opt/sypnose ]; then
     ok "Backup creado en $BACKUP"
 fi
 
-# Descomprimir a /tmp y copiar
-TMP_DIR=$(mktemp -d)
-tar xzf "$TARBALL" -C "$TMP_DIR" || fail "Error al descomprimir $TARBALL"
-
-# Detectar subdirectorio dentro del tar
-SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)
-if [ -z "$SRC_DIR" ]; then
-    SRC_DIR="$TMP_DIR"
-fi
-
-# Verificar que el paquete tiene la estructura correcta
-if [ ! -f "$SRC_DIR/core/loop.js" ]; then
-    rm -rf "$TMP_DIR"
-    fail "Estructura del paquete incorrecta: falta core/loop.js. Paquete corrupto o incompleto."
-fi
-
+# Copiar archivos a /opt/sypnose/
 mkdir -p /opt/sypnose
-# Copiar contenido (incluyendo archivos ocultos como .env.example)
-cp -r "$SRC_DIR"/. /opt/sypnose/ 2>/dev/null || true
-# Copiar dotfiles del nivel raiz del tar si existen
-find "$SRC_DIR" -maxdepth 1 -name ".*" -exec cp {} /opt/sypnose/ \; 2>/dev/null || true
+if [ -n "$V52_DIR" ] && [ -d "$V52_DIR/core" ]; then
+    # Copiar desde directorio v5.2/ del repo
+    cp -r "$V52_DIR"/. /opt/sypnose/ 2>/dev/null || true
+    find "$V52_DIR" -maxdepth 1 -name ".*" -exec cp {} /opt/sypnose/ \; 2>/dev/null || true
+elif [ -n "$TARBALL" ]; then
+    # Fallback: descomprimir tarball
+    TMP_DIR=$(mktemp -d)
+    tar xzf "$TARBALL" -C "$TMP_DIR" || fail "Error al descomprimir $TARBALL"
+    SRC_DIR=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -1)
+    [ -z "$SRC_DIR" ] && SRC_DIR="$TMP_DIR"
+    if [ ! -f "$SRC_DIR/core/loop.js" ]; then
+        rm -rf "$TMP_DIR"
+        fail "Estructura del paquete incorrecta: falta core/loop.js"
+    fi
+    cp -r "$SRC_DIR"/. /opt/sypnose/ 2>/dev/null || true
+    find "$SRC_DIR" -maxdepth 1 -name ".*" -exec cp {} /opt/sypnose/ \; 2>/dev/null || true
+    rm -rf "$TMP_DIR"
+fi
+
+# Verificar estructura
+if [ ! -f /opt/sypnose/core/loop.js ]; then
+    fail "Estructura incorrecta: falta /opt/sypnose/core/loop.js"
+fi
 
 chown -R "$USER":"$USER" /opt/sypnose
 ok "Archivos copiados a /opt/sypnose/"
@@ -280,6 +295,12 @@ elif [ -f "$SSE_SRC/index.js" ]; then
     printf "SYPNOSE_HUB_TOKEN=%s\nPORT=8095\n" "$HUB_TOKEN" > "$HOME_DIR/.config/sypnose-hub.env"
     chmod 600 "$HOME_DIR/.config/sypnose-hub.env"
     chown "$USER":"$USER" "$HOME_DIR/.config/sypnose-hub.env"
+    # Instalar systemd service
+    if [ -f "$SSE_SRC/sypnose-hub.service" ] && [ ! -f /etc/systemd/system/sypnose-hub.service ]; then
+        sed -e "s|User=.*|User=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$SSE_SRC/sypnose-hub.service" \
+            > /etc/systemd/system/sypnose-hub.service
+        ok "sypnose-hub.service instalado"
+    fi
     ok "SSE Hub instalado. Token generado."
 else
     warn "SSE Hub no encontrado en prerequisites/"
@@ -299,6 +320,12 @@ elif [ -f "$CH_SRC/sypnose-channel.ts" ]; then
     chown -R "$USER":"$USER" "$CH_DST"
     BUN=$(su -c 'echo ~/.bun/bin/bun' "$USER" 2>/dev/null | tr -d '\n')
     [ -x "$BUN" ] && su -c "cd $CH_DST && $BUN install --silent" "$USER" 2>/dev/null && ok "Channel MCP instalado" || warn "bun install pendiente"
+    # Instalar systemd service
+    if [ -f "$CH_SRC/sypnose-channel.service" ] && [ ! -f /etc/systemd/system/sypnose-channel.service ]; then
+        sed -e "s|User=.*|User=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$CH_SRC/sypnose-channel.service" \
+            > /etc/systemd/system/sypnose-channel.service
+        ok "sypnose-channel.service instalado"
+    fi
 else
     warn "Channel MCP no encontrado en prerequisites/"
 fi
@@ -329,8 +356,8 @@ info "PASO 8a: sm-tmux"
 if [ -x /usr/local/bin/sm-tmux ]; then
     ok "sm-tmux ya instalado"
 else
-    SM="$SCRIPT_DIR/prerequisites/sm-tmux/sm-tmux.sh"
-    [ ! -f "$SM" ] && SM="$SCRIPT_DIR/prerequisites/sm-tmux.sh"
+    SM="$SCRIPT_DIR/prerequisites/sm-tmux/sm-tmux"
+    [ ! -f "$SM" ] && SM="$SCRIPT_DIR/prerequisites/sm-tmux/sm-tmux.sh"
     if [ -f "$SM" ]; then
         cp "$SM" /usr/local/bin/sm-tmux && chmod +x /usr/local/bin/sm-tmux
         ok "sm-tmux instalado"

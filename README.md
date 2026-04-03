@@ -48,4 +48,4 @@ The human is always the architect. The AI is the team.
 
 ## Author
 
-Carlos De La Torre — [Portfolio](https://app.huyghusrl.com/ai-portfolio/)
+Carlos De La Torre — [LinkedIn](https://linkedin.com/in/carlosdelatorre-ai)
