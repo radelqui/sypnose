@@ -21,6 +21,7 @@ info() { echo -e "${CYN}  ---${RST}  $1"; }
 # --- Parametros ---
 USER=${1:-gestoria}
 HOME_DIR="/home/$USER"
+TMP_DIR=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo ""
@@ -121,38 +122,7 @@ elif [ -d "$PREREQ_KB/src" ]; then
     sleep 3
     curl -sf http://localhost:18791/health &>/dev/null && ok "KB instalado y corriendo" || fail "KB no responde"
 else
-    warn "Knowledge Hub NO detectado y prerequisites/knowledge-hub/src no encontrado"
-    KB_SRC="$SCRIPT_DIR/prerequisites/knowledge-hub"
-    if [ -f "$KB_SRC/src/server.js" ]; then
-        info "Instalando Knowledge Hub desde prerequisites/..."
-        mkdir -p /opt/knowledge-hub/data
-        cp -r "$KB_SRC"/src /opt/knowledge-hub/
-        cp -r "$KB_SRC"/scripts /opt/knowledge-hub/ 2>/dev/null || true
-        cp "$KB_SRC"/package.json /opt/knowledge-hub/
-        cp "$KB_SRC"/run-mcp.sh /opt/knowledge-hub/ 2>/dev/null || true
-        chmod +x /opt/knowledge-hub/run-mcp.sh 2>/dev/null || true
-        chown -R "$USER":"$USER" /opt/knowledge-hub
-        cd /opt/knowledge-hub && su -c "/usr/bin/npm install --silent" "$USER" || warn "npm install fallo en knowledge-hub"
-        # Instalar systemd
-        if [ -f "$KB_SRC/knowledge-hub.service" ] && [ ! -f /etc/systemd/system/knowledge-hub.service ]; then
-            sed -e "s|User=.*|User=$USER|" -e "s|Group=.*|Group=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$KB_SRC/knowledge-hub.service" \
-                > /etc/systemd/system/knowledge-hub.service
-            systemctl daemon-reload
-            systemctl enable knowledge-hub
-            systemctl start knowledge-hub
-            sleep 3
-        fi
-        # Verificar
-        if curl -sf http://localhost:18791/health &>/dev/null; then
-            ok "Knowledge Hub instalado y corriendo en :18791"
-        else
-            warn "Knowledge Hub instalado pero no responde — verificar logs: journalctl -u knowledge-hub"
-        fi
-    else
-        echo ""
-        read -r -p "  Continuar sin Knowledge Hub? (s/N): " CONT
-        [[ "$CONT" =~ ^[sS]$ ]] || fail "Instala el Knowledge Hub primero."
-    fi
+    fail "KB no detectado y prerequisites/knowledge-hub/src no encontrado."
 fi
 
 # ============================================================
@@ -323,7 +293,7 @@ if [ -f "$SSE_DST/index.js" ]; then
     ok "SSE Hub ya existe en $SSE_DST"
 elif [ -f "$SSE_SRC/index.js" ]; then
     mkdir -p "$SSE_DST"
-    cp "$SSE_SRC"/* "$SSE_DST/"
+    cp "$SSE_SRC"/*.js "$SSE_SRC"/package.json "$SSE_DST/" 2>/dev/null
     chown -R "$USER":"$USER" "$SSE_DST"
     su -c "cd $SSE_DST && /usr/bin/npm install --silent" "$USER" 2>/dev/null
     HUB_TOKEN=$(openssl rand -hex 32)
@@ -352,7 +322,7 @@ if [ -d "$CH_DST" ] && [ -f "$CH_DST/sypnose-channel.ts" ]; then
     ok "Channel MCP ya existe"
 elif [ -f "$CH_SRC/sypnose-channel.ts" ]; then
     mkdir -p "$CH_DST"
-    cp "$CH_SRC"/* "$CH_DST/"
+    cp "$CH_SRC"/*.ts "$CH_SRC"/package.json "$CH_DST/" 2>/dev/null
     chown -R "$USER":"$USER" "$CH_DST"
     BUN=$(su -c 'echo ~/.bun/bin/bun' "$USER" 2>/dev/null | tr -d '\n')
     [ -x "$BUN" ] && su -c "cd $CH_DST && $BUN install --silent" "$USER" 2>/dev/null && ok "Channel MCP instalado" || warn "bun install pendiente"
@@ -443,9 +413,10 @@ su -c "mkdir -p ~/.openclaw/pending-plans ~/.openclaw/plan-cache ~/.config" "$US
 info "PASO 8b: OpenClaw"
 OC_SRC="$SCRIPT_DIR/prerequisites/openclaw"
 OC_DST="/home/$USER/openclaw"
-if [ -d "$OC_SRC" ] && [ -f "$OC_SRC/health_api.py" ]; then
+OC_PKG="$SCRIPT_DIR/packages/openclaw"
+if [ -f "$OC_SRC/health_api.py" ] || [ -f "$OC_PKG/health_api.py" ]; then
     mkdir -p "$OC_DST"
-    cp "$OC_SRC"/*.py "$OC_DST/"
+    if [ -f "$OC_SRC/health_api.py" ]; then cp "$OC_SRC"/*.py "$OC_DST/"; else cp "$OC_PKG"/*.py "$OC_DST/"; fi
     cp -r "$OC_SRC"/config "$OC_DST/" 2>/dev/null
     chown -R "$USER":"$USER" "$OC_DST"
     ok "OpenClaw copiado a $OC_DST"
@@ -669,7 +640,7 @@ check_item "SSE Hub codigo fuente"      "[ -f /home/shared/sypnose-hub/index.js 
 check_item "sm-tmux instalado"          "[ -x /usr/local/bin/sm-tmux ]"
 check_item "sypnose-coordinator.service" "[ -f /etc/systemd/system/sypnose-coordinator.service ]"
 check_item "sypnose-sse.service"        "[ -f /etc/systemd/system/sypnose-sse.service ]"
-check_item "Crontab Sypnose"            "su -c \"crontab -l 2>/dev/null\" $USER | grep -q 'SYPNOSE'"
+check_item "Crontab Sypnose"            "su -c \"crontab -l 2>/dev/null\" $USER | grep -q 'kb-janitor'"
 
 echo ""
 echo -e "${GRN}=========================================${RST}"
