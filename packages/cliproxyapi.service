@@ -1,0 +1,16 @@
+[Unit]
+Description=CLIProxyAPI Service (:8317)
+After=network.target
+
+[Service]
+Type=simple
+User=<USUARIO>
+WorkingDirectory=/home/<USUARIO>/cliproxyapi
+ExecStartPre=/bin/bash -c 'fuser -k 8317/tcp 2>/dev/null || true'
+ExecStart=/home/<USUARIO>/cliproxyapi/cli-proxy-api
+Restart=always
+RestartSec=10
+Environment=HOME=/home/<USUARIO>
+
+[Install]
+WantedBy=multi-user.target

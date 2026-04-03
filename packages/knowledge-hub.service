@@ -1,0 +1,19 @@
+[Unit]
+Description=KnowledgeHub MCP Server - Knowledge Base with FTS5
+After=network.target
+
+[Service]
+Type=simple
+User=<USUARIO>
+Group=<USUARIO>
+WorkingDirectory=/opt/knowledge-hub
+ExecStart=/usr/bin/node /opt/knowledge-hub/src/server.js
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=knowledge-hub
+
+[Install]
+WantedBy=multi-user.target

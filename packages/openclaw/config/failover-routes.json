@@ -1,0 +1,16 @@
+{
+  "failover_chains": {
+    "reasoning": {"primary": "deepseek-r1", "fallbacks": ["gemini-2.5-pro", "qwen3-max", "sonar-reasoning"]},
+    "coding": {"primary": "qwen3-coder-plus", "fallbacks": ["deepseek-v3.2", "gemini-2.5-flash", "qwen3-coder-flash"]},
+    "general": {"primary": "deepseek-v3.2", "fallbacks": ["gemini-2.5-flash", "qwen3-max", "kimi-k2"]},
+    "vision": {"primary": "qwen3-vl-plus", "fallbacks": ["gemini-2.5-flash", "vision-model"]},
+    "web_search": {"primary": "sonar", "fallbacks": ["sonar-pro", "gemini-2.5-flash"]},
+    "heavy_architecture": {"primary": "deepseek-r1", "fallbacks": ["gemini-2.5-pro", "qwen3-max", "deepseek-v3.2"]},
+    "monitoring": {"primary": "deepseek-v3.2", "fallbacks": ["gemini-2.5-flash-lite", "qwen3-32b"]}
+  },
+  "rules": {
+    "max_consecutive_failures_before_skip": 3,
+    "cooldown_after_failure_minutes": 15,
+    "never_use_for_monitoring": []
+  }
+}

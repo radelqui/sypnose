@@ -1,0 +1,22 @@
+{
+  "name": "knowledge-hub",
+  "version": "1.0.0",
+  "description": "KnowledgeHub MCP Server - SQLite FTS5 knowledge base",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "mcp": "node src/mcp-server.js",
+    "migrate": "node scripts/migrate.js",
+    "prune": "node scripts/cron-degrade.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "better-sqlite3": "^12.8.0",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  }
+}
