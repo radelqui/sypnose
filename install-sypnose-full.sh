@@ -96,44 +96,53 @@ if ! command -v bun &>/dev/null && ! su -c "~/.bun/bin/bun --version" "$USER" &>
 else
     ok "Bun disponible"
 fi
-
 # ============================================================
-# PASO 2: Verificar Knowledge Hub (:18791)
+# PASO 2: Instalar Knowledge Hub (:18791)
 # ============================================================
-info "PASO 2: Verificar Knowledge Hub (:18791)"
-
+info "PASO 2: Knowledge Hub (:18791)"
+PREREQ_KB="$SCRIPT_DIR/prerequisites/knowledge-hub"
 if curl -sf http://localhost:18791/health &>/dev/null; then
-    ok "Knowledge Hub activo en :18791"
+    ok "Knowledge Hub ya activo en :18791"
+elif [ -d "$PREREQ_KB/src" ]; then
+    info "Instalando KB desde prerequisites/knowledge-hub/..."
+    mkdir -p /opt/knowledge-hub
+    cp -r "$PREREQ_KB"/src "$PREREQ_KB"/package.json /opt/knowledge-hub/
+    cp "$PREREQ_KB"/package-lock.json /opt/knowledge-hub/ 2>/dev/null || true
+    chown -R "$USER":"$USER" /opt/knowledge-hub
+    mkdir -p /opt/knowledge-hub/data
+    chown "$USER":"$USER" /opt/knowledge-hub/data
+    su -c "cd /opt/knowledge-hub && /usr/bin/npm install --silent" "$USER" || fail "npm install KB fallo"
+    SVC="$SCRIPT_DIR/prerequisites/knowledge-hub.service"
+    if [ -f "$SVC" ]; then
+        sed "s|<USUARIO>|$USER|g" "$SVC" > /etc/systemd/system/knowledge-hub.service
+    fi
+    systemctl daemon-reload
+    systemctl enable --now knowledge-hub
+    sleep 3
+    curl -sf http://localhost:18791/health &>/dev/null && ok "KB instalado y corriendo" || fail "KB no responde"
 else
-    warn "Knowledge Hub NO detectado en :18791"
-    echo -e "       Instalar manualmente:"
-    echo -e "         1. Copiar codigo fuente a /opt/knowledge-hub/"
-    echo -e "         2. cd /opt/knowledge-hub && npm install"
-    echo -e "         3. sudo cp knowledge-hub.service /etc/systemd/system/"
-    echo -e "         4. sudo systemctl enable --now knowledge-hub"
-    echo -e "       Sypnose NO puede funcionar sin el Knowledge Hub."
-    echo ""
-    read -r -p "  Continuar de todas formas? (s/N): " CONT
-    [[ "$CONT" =~ ^[sS]$ ]] || fail "Instalacion cancelada. Instala el Knowledge Hub primero."
+    fail "KB no activo y prerequisites/knowledge-hub/ no encontrado"
 fi
 
 # ============================================================
-# PASO 3: Verificar CLIProxy / SypnoseProxy (:8317)
+# PASO 3: Instalar CLIProxy (:8317)
 # ============================================================
-info "PASO 3: Verificar CLIProxy (:8317)"
-
+info "PASO 3: CLIProxy (:8317)"
 if curl -sf http://localhost:8317/ &>/dev/null; then
-    ok "CLIProxy activo en :8317"
+    ok "CLIProxy ya activo en :8317"
 else
-    warn "CLIProxy NO detectado en :8317"
-    echo -e "       Instalar manualmente:"
-    echo -e "         1. Copiar binario cli-proxy-api + config.yaml a /home/$USER/cliproxyapi/"
-    echo -e "         2. chmod +x /home/$USER/cliproxyapi/cli-proxy-api"
-    echo -e "         3. sudo cp cliproxyapi.service /etc/systemd/system/"
-    echo -e "         4. sudo systemctl enable --now cliproxyapi"
-    echo -e "       Nota: CLIProxy es binario Go externo — no viene en el paquete Sypnose."
-    echo ""
+    CDIR="$SCRIPT_DIR/prerequisites/cliproxy"
+    if [ -f "$CDIR/cli-proxy-api" ]; then
+        mkdir -p /home/$USER/cliproxyapi/logs
+        cp "$CDIR"/cli-proxy-api "$CDIR"/config.yaml /home/$USER/cliproxyapi/
+        chmod +x /home/$USER/cliproxyapi/cli-proxy-api
+        chown -R "$USER":"$USER" /home/$USER/cliproxyapi
+        warn "CLIProxy copiado — EDITAR config.yaml con tus API keys"
+    else
+        warn "CLIProxy binario no encontrado. Descargar de GitHub Releases."
+    fi
 fi
+
 
 # ============================================================
 # PASO 4: Instalar Sypnose v5.2 desde paquete
@@ -253,162 +262,98 @@ fi
 mkdir -p /var/log/sypnose/audit /var/log/sypnose/events
 chown -R "$USER":"$USER" /var/log/sypnose
 ok "Directorios /var/log/sypnose/ creados"
-
 # ============================================================
-# PASO 5: Verificar SSE Hub (:8095)
+# PASO 5: Instalar SSE Hub (:8095)
 # ============================================================
-info "PASO 5: Verificar SSE Hub (:8095)"
-
-SSE_HUB_PATH="/home/shared/sypnose-hub"
-if [ -f "$SSE_HUB_PATH/index.js" ]; then
-    ok "SSE Hub encontrado en $SSE_HUB_PATH"
-
-    # Crear .env si no existe
-    SSE_ENV="$HOME_DIR/.config/sypnose-hub.env"
-    if [ ! -f "$SSE_ENV" ]; then
-        mkdir -p "$HOME_DIR/.config"
-        HUB_TOKEN=$(openssl rand -hex 32)
-        cat > "$SSE_ENV" << EOF
-SYPNOSE_HUB_TOKEN=${HUB_TOKEN}
-PORT=8095
-EOF
-        chown "$USER":"$USER" "$SSE_ENV"
-        chmod 600 "$SSE_ENV"
-        ok ".env SSE Hub creado en $SSE_ENV"
-    else
-        ok "SSE Hub .env ya existe"
-    fi
-
-    # Copiar systemd si no existe
-    if [ ! -f /etc/systemd/system/sypnose-hub.service ]; then
-        cat > /etc/systemd/system/sypnose-hub.service << EOF
-[Unit]
-Description=Sypnose Hub — SSE Bridge sobre Knowledge Hub
-After=network.target
-
-[Service]
-Type=simple
-User=$USER
-WorkingDirectory=$SSE_HUB_PATH
-ExecStart=/usr/bin/node $SSE_HUB_PATH/index.js
-EnvironmentFile=$SSE_ENV
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-        ok "sypnose-hub.service creado"
-    else
-        ok "sypnose-hub.service ya existe"
-    fi
+info "PASO 5: SSE Hub (:8095)"
+SSE_SRC="$SCRIPT_DIR/prerequisites/sypnose-hub"
+SSE_DST="/home/shared/sypnose-hub"
+if [ -f "$SSE_DST/index.js" ]; then
+    ok "SSE Hub ya existe en $SSE_DST"
+elif [ -f "$SSE_SRC/index.js" ]; then
+    mkdir -p "$SSE_DST"
+    cp "$SSE_SRC"/* "$SSE_DST/"
+    chown -R "$USER":"$USER" "$SSE_DST"
+    su -c "cd $SSE_DST && /usr/bin/npm install --silent" "$USER" 2>/dev/null
+    HUB_TOKEN=$(openssl rand -hex 32)
+    mkdir -p "$HOME_DIR/.config"
+    printf "SYPNOSE_HUB_TOKEN=%s\nPORT=8095\n" "$HUB_TOKEN" > "$HOME_DIR/.config/sypnose-hub.env"
+    chmod 600 "$HOME_DIR/.config/sypnose-hub.env"
+    chown "$USER":"$USER" "$HOME_DIR/.config/sypnose-hub.env"
+    ok "SSE Hub instalado. Token generado."
 else
-    warn "SSE Hub NO encontrado en $SSE_HUB_PATH"
-    echo -e "       El SSE Hub es codigo fuente externo (no viene en el paquete Sypnose)."
-    echo -e "       Instalar manualmente: copiar index.js + package.json a $SSE_HUB_PATH"
+    warn "SSE Hub no encontrado en prerequisites/"
 fi
 
 # ============================================================
-# PASO 6: Verificar Channel MCP
+# PASO 6: Instalar Channel MCP
 # ============================================================
-info "PASO 6: Verificar Channel MCP"
-
-CHANNEL_PATH="$SSE_HUB_PATH/channel"
-if [ -d "$CHANNEL_PATH" ]; then
-    ok "Channel MCP encontrado en $CHANNEL_PATH"
-
-    # bun install si hay package.json
-    if [ -f "$CHANNEL_PATH/package.json" ]; then
-        BUN_BIN=$(su -c 'echo ~/.bun/bin/bun' "$USER" 2>/dev/null | tr -d '\n')
-        if [ -x "$BUN_BIN" ]; then
-            su -c "cd $CHANNEL_PATH && $BUN_BIN install --silent" "$USER" 2>/dev/null && ok "Channel MCP: bun install OK" || warn "bun install fallo — verificar manualmente"
-        else
-            warn "Bun no disponible — omitiendo bun install en Channel MCP"
-        fi
-    fi
+info "PASO 6: Channel MCP"
+CH_SRC="$SCRIPT_DIR/prerequisites/channel"
+CH_DST="/home/shared/sypnose-hub/channel"
+if [ -d "$CH_DST" ] && [ -f "$CH_DST/sypnose-channel.ts" ]; then
+    ok "Channel MCP ya existe"
+elif [ -f "$CH_SRC/sypnose-channel.ts" ]; then
+    mkdir -p "$CH_DST"
+    cp "$CH_SRC"/* "$CH_DST/"
+    chown -R "$USER":"$USER" "$CH_DST"
+    BUN=$(su -c 'echo ~/.bun/bin/bun' "$USER" 2>/dev/null | tr -d '\n')
+    [ -x "$BUN" ] && su -c "cd $CH_DST && $BUN install --silent" "$USER" 2>/dev/null && ok "Channel MCP instalado" || warn "bun install pendiente"
 else
-    warn "Channel MCP NO encontrado en $CHANNEL_PATH"
-    echo -e "       Es codigo fuente externo. Instalar manualmente en $CHANNEL_PATH"
+    warn "Channel MCP no encontrado en prerequisites/"
 fi
 
 # ============================================================
-# PASO 7: Templates Boris
+# PASO 7: Instalar Boris hooks
 # ============================================================
-info "PASO 7: Verificar templates Boris en /opt/sypnose/templates/boris/"
-
-if [ -d /opt/sypnose/templates/boris ]; then
-    ok "Templates Boris ya existen en /opt/sypnose/templates/boris/"
+info "PASO 7: Boris hooks"
+BORIS_SRC="$SCRIPT_DIR/prerequisites/boris"
+BORIS_TPL="/opt/sypnose/templates/boris"
+if [ -d "$BORIS_SRC" ] && ls "$BORIS_SRC"/*.sh &>/dev/null; then
+    mkdir -p "$BORIS_TPL/hooks" "$BORIS_TPL/rules"
+    cp "$BORIS_SRC"/*.sh "$BORIS_TPL/hooks/" 2>/dev/null
+    cp "$BORIS_SRC"/*.md "$BORIS_TPL/rules/" 2>/dev/null
+    chmod +x "$BORIS_TPL/hooks/"*.sh 2>/dev/null
+    chown -R "$USER":"$USER" "$BORIS_TPL"
+    COUNT=$(ls "$BORIS_TPL/hooks/"*.sh 2>/dev/null | wc -l)
+    ok "Boris: $COUNT hooks copiados a templates/boris/"
 else
-    mkdir -p /opt/sypnose/templates/boris
-    chown -R "$USER":"$USER" /opt/sypnose/templates/boris
-
-    # Crear README de uso
-    cat > /opt/sypnose/templates/boris/README.md << 'EOF'
-# Boris v6.2 — Templates de instalacion por proyecto
-
-## Uso
-Para instalar Boris en un nuevo proyecto:
-
-```bash
-PROYECTO=/home/$USER/mi-proyecto
-mkdir -p $PROYECTO/.claude/hooks $PROYECTO/.claude/rules $PROYECTO/.brain
-
-# Copiar hooks de un proyecto existente con Boris instalado:
-cp /home/<usuario>/<proyecto-ref>/.claude/hooks/*.sh $PROYECTO/.claude/hooks/
-chmod +x $PROYECTO/.claude/hooks/*.sh
-
-# Inicializar .brain/
-echo "# Task\nNo hay tarea activa." > $PROYECTO/.brain/task.md
-echo "# Session State\nNueva sesion." > $PROYECTO/.brain/session-state.md
-touch $PROYECTO/.brain/history.md $PROYECTO/.brain/done-registry.md
-```
-
-## 6 Hooks que necesita cada proyecto
-- boris-session-start.sh  (SessionStart)
-- boris-pre-compact.sh    (PreCompact)
-- boris-verification-gate.sh (PreToolUse Bash)
-- boris-protect-files.sh  (PreToolUse Write|Edit|Read|Bash)
-- boris-stop.sh           (Stop)
-- kb-inbox-check.sh       (UserPromptSubmit)
-
-## IMPORTANTE
-Boris se instala POR PROYECTO, no globalmente.
-Este directorio es solo para referencia/copia.
-EOF
-
-    warn "Templates Boris: directorio creado pero sin hooks fuente."
-    echo -e "       Copia los hooks de un proyecto existente a /opt/sypnose/templates/boris/"
+    warn "Boris hooks no encontrados en prerequisites/boris/"
+    mkdir -p "$BORIS_TPL"
 fi
 
 # ============================================================
-# PASO 8: Verificar sm-tmux
+# PASO 8: Instalar sm-tmux + OpenClaw
 # ============================================================
-info "PASO 8: Verificar sm-tmux"
-
+info "PASO 8a: sm-tmux"
 if [ -x /usr/local/bin/sm-tmux ]; then
-    ok "sm-tmux encontrado en /usr/local/bin/sm-tmux"
-
-    # Crear directorios necesarios para el usuario
-    su -c "mkdir -p ~/.openclaw/pending-plans ~/.openclaw/plan-cache ~/.config" "$USER" 2>/dev/null
-    SM_ENV="$HOME_DIR/.config/sm-tmux.env"
-    if [ ! -f "$SM_ENV" ]; then
-        cat > "$SM_ENV" << 'EOF'
-# Obtener tu key de CLIProxy y ponerla aqui
-CLIPROXY_API_KEY="sk-TU-KEY-AQUI"
-EOF
-        chown "$USER":"$USER" "$SM_ENV"
-        chmod 600 "$SM_ENV"
-        warn "sm-tmux.env creado en $SM_ENV — EDITAR con tu CLIPROXY_API_KEY"
-    else
-        ok "sm-tmux.env ya existe"
-    fi
+    ok "sm-tmux ya instalado"
 else
-    warn "sm-tmux NO encontrado en /usr/local/bin/sm-tmux"
-    echo -e "       sm-tmux es un script bash externo (1499 lineas)."
-    echo -e "       Instalar manualmente:"
-    echo -e "         sudo cp sm-tmux /usr/local/bin/sm-tmux"
-    echo -e "         sudo chmod +x /usr/local/bin/sm-tmux"
+    SM="$SCRIPT_DIR/prerequisites/sm-tmux/sm-tmux.sh"
+    [ ! -f "$SM" ] && SM="$SCRIPT_DIR/prerequisites/sm-tmux.sh"
+    if [ -f "$SM" ]; then
+        cp "$SM" /usr/local/bin/sm-tmux && chmod +x /usr/local/bin/sm-tmux
+        ok "sm-tmux instalado"
+    else
+        warn "sm-tmux no encontrado en prerequisites/"
+    fi
 fi
+su -c "mkdir -p ~/.openclaw/pending-plans ~/.openclaw/plan-cache ~/.config" "$USER" 2>/dev/null
+info "PASO 8b: OpenClaw"
+OC_SRC="$SCRIPT_DIR/prerequisites/openclaw"
+OC_DST="/home/$USER/openclaw"
+if [ -d "$OC_SRC" ] && [ -f "$OC_SRC/health_api.py" ]; then
+    mkdir -p "$OC_DST"
+    cp "$OC_SRC"/*.py "$OC_DST/"
+    cp -r "$OC_SRC"/config "$OC_DST/" 2>/dev/null
+    chown -R "$USER":"$USER" "$OC_DST"
+    ok "OpenClaw copiado a $OC_DST"
+elif [ -d "$OC_DST" ]; then
+    ok "OpenClaw ya existe en $OC_DST"
+else
+    warn "OpenClaw no encontrado en prerequisites/"
+fi
+
 
 # ============================================================
 # PASO 9: Systemd — registrar e instalar services Sypnose
