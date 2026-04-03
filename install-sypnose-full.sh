@@ -509,36 +509,6 @@ else
 fi
 
 # ============================================================
-# PASO 8d: Commands, skills y hooks
-# ============================================================
-info "PASO 8d: Commands, skills y hooks a templates/"
-TPL="/opt/sypnose/templates"
-REPO="$SCRIPT_DIR"
-mkdir -p "$TPL/commands" "$TPL/skills" "$TPL/hooks"
-
-# Commands core
-if [ -d "$REPO/.claude/commands" ]; then
-    cp "$REPO"/.claude/commands/*.md "$TPL/commands/" 2>/dev/null
-    COUNT=$(ls "$TPL/commands/"*.md 2>/dev/null | wc -l)
-    ok "$COUNT commands copiados a templates/commands/"
-fi
-
-# Skills
-if [ -d "$REPO/skills" ]; then
-    cp -r "$REPO"/skills/* "$TPL/skills/" 2>/dev/null
-    ok "Skills copiados a templates/skills/"
-fi
-
-# Hooks Boris
-if [ -d "$REPO/.claude/hooks" ]; then
-    cp "$REPO"/.claude/hooks/*.sh "$TPL/hooks/" 2>/dev/null
-    chmod +x "$TPL/hooks/"*.sh 2>/dev/null
-    ok "Boris hooks copiados a templates/hooks/"
-fi
-
-chown -R "$USER":"$USER" "$TPL"
-
-# ============================================================
 # PASO 9: Systemd — registrar e instalar services Sypnose
 # ============================================================
 info "PASO 9: Configurar systemd services"
