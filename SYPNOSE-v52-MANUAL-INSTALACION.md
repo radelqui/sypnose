@@ -1045,24 +1045,609 @@ KB: kb_save key=test category=response project=test"
 
 ---
 
+## SECCION 17: Templates para proyectos nuevos
+
+### Donde viven
+```
+prerequisites/templates/
+├── settings.local.json.example   <- Permisos y hooks para agente Sypnose
+├── hooks-config.json.example     <- Config de hooks para settings.local.json
+└── CLAUDE.md.template            <- Identidad + Boris + KB para nuevo agente
+```
+
+### Como usarlos al crear un agente nuevo
+
+```bash
+cd /home/<USUARIO>/<nuevo-proyecto>
+mkdir -p .claude/hooks .claude/rules .brain
+
+# 1. Copiar y adaptar settings
+cp /home/<USUARIO>/sypnose/prerequisites/templates/settings.local.json.example \
+   .claude/settings.local.json
+
+# 2. Copiar template CLAUDE.md y editar identidad del agente
+cp /home/<USUARIO>/sypnose/prerequisites/templates/CLAUDE.md.template CLAUDE.md
+# Editar: nombre del agente, proyecto, stack, comandos de verificacion
+
+# 3. Copiar hooks Boris de un proyecto existente
+cp /home/<USUARIO>/gestion-contadoresrd/.claude/hooks/*.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+
+# 4. Inicializar .brain/
+echo "# Task\nNo hay tarea activa." > .brain/task.md
+echo "# Session State\nNueva sesion." > .brain/session-state.md
+touch .brain/history.md .brain/done-registry.md
+```
+
+### settings.local.json minimo para agente Sypnose
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)", "Read(*)", "Edit(*)", "Write(*)",
+      "Glob(*)", "Grep(*)", "MultiEdit(*)",
+      "mcp__*", "Agent(*)", "TodoWrite(*)", "Skill(*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo reboot*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  }
+}
+```
+
+**CRITICO**: `"defaultMode": "bypassPermissions"` — sin esto el agente pregunta permisos
+y se detiene. Los agentes Sypnose son autonomos.
+
+### Verificacion
+```bash
+# El agente debe arrancar sin preguntar permisos:
+tmux send-keys -t <nombre> "claude --dangerously-skip-permissions" Enter
+# Si pide confirmacion -> revisar settings.local.json
+```
+
+---
+
+## SECCION 18: Boris MCP Server
+
+### Que es
+Servidor MCP Python (644 lineas) que proporciona herramientas de quality gate
+y persistencia de estado a cada arquitecto Claude Code.
+
+### Archivo
+```
+prerequisites/boris/boris_mcp.py
+```
+
+### Las 7 tools
+
+| Tool | Funcion |
+|---|---|
+| `boris_start_task(name, desc)` | Inicia tarea: git pull, git tag, crea estado inicial en .brain/ |
+| `boris_get_state()` | Lee .brain/ completo: task, session-state, history, done-registry |
+| `boris_save_state(progress, next_step)` | Guarda progreso periodico (llamar cada 15 min) |
+| `boris_verify(what_changed, how_verified, result)` | Registra evidencia OBLIGATORIA antes de commit |
+| `boris_register_done(task_name, summary)` | Marca tarea completada, envia notificacion KB |
+| `boris_sync()` | git add .brain/ + commit --no-verify + push |
+| `boris_end_session(summary)` | Cierre limpio: guarda, sincroniza, kb_save category=report |
+
+### Flujo obligatorio por tarea
+
+```
+1. boris_start_task("nombre", "descripcion")
+2. ... trabajar ...
+3. boris_save_state(progress="lo completado", next_step="lo siguiente")  <- cada 15 min
+4. boris_verify(what_changed="...", how_verified="...", result="output real")
+5. git commit (el hook valida la evidencia de boris_verify)
+6. boris_register_done("nombre", "resumen + verificacion")
+7. boris_end_session("resumen final")
+```
+
+### Instalacion en servidor
+
+```bash
+pip install mcp pydantic --break-system-packages
+mkdir -p ~/.boris
+cp prerequisites/boris/boris_mcp.py ~/.boris/
+claude mcp add boris --scope user -- python3 ~/.boris/boris_mcp.py
+```
+
+### Instalacion en Windows/Mac
+
+```bash
+pip install mcp pydantic
+mkdir -p ~/.boris
+cp prerequisites/boris/boris_mcp.py ~/.boris/
+claude mcp add boris --scope user -- python3 ~/.boris/boris_mcp.py
+```
+
+### Verificacion
+
+```bash
+claude mcp list | grep boris
+# Debe mostrar: boris (python3 ~/.boris/boris_mcp.py)
+
+# Probar que funciona:
+claude mcp call boris boris_get_state
+# Debe devolver: { state: "..." }
+```
+
+---
+
+## SECCION 19: Slash commands y skills
+
+### Commands (.claude/commands/)
+
+El repo contiene 19 archivos en `.claude/commands/`:
+
+| Archivo | Comando | Funcion |
+|---|---|---|
+| `bios.md` | /bios | Protocolo arranque: load KB, estado, inbox, reportar |
+| `sypnose-create-plan.md` | /sypnose-create-plan | 6 pasos para crear y enviar plan a arquitecto |
+| `workflow-obligatorio.md` | /workflow-obligatorio | Checklist pre/post tarea (git pull, tag, commit) |
+| `boris-start.md` | /boris-start | Arranque Boris con los 9 pasos |
+| `01-verificacion.md` | Regla | Sin evidencia no hay commit |
+| `02-memory-protocol.md` | Regla | Persistencia entre sesiones con .brain/ |
+| `05-modelos-ia.md` | Regla | Matriz de modelos: gratis vs pago |
+| `06-boris-flujo.md` | Regla | Flujo Boris completo 9 pasos |
+| `delegate.md` | /delegate | Como delegar con Agent tool correctamente |
+| `ralph.md` | /ralph | Loop autonomo en servidor |
+| `dgii-fiscal.md` | /dgii-fiscal | Conocimiento fiscal DGII dominicano |
+| `design-*.md` | /design-* | Suite de diseno: accessibility, critique, system, etc. |
+
+### Los 3 commands mas importantes
+
+**`/bios`** — Primer comando de cada sesion:
+```
+1. Carga MEMORY.md del proyecto
+2. Lee .brain/task.md y session-state.md
+3. kb_inbox_check para notificaciones pendientes
+4. Verifica sesiones tmux activas
+5. Reporta: donde estamos, que falta, que recomiendas
+```
+
+**`/sypnose-create-plan`** — Para enviar trabajo a arquitectos:
+```
+1. INVESTIGAR: kb_search del tema
+2. CREAR PLAN con 6 etiquetas obligatorias
+3. MOSTRAR a Carlos — NO enviar sin aprobacion
+4. GUARDAR en KB: kb_save key=task-[nombre] category=task
+5. ENVIAR via sm-tmux con Gemini Gate
+6. MONITOREAR resultado
+```
+
+**`/workflow-obligatorio`** — Antes de tocar cualquier codigo:
+```
+1. git pull
+2. git tag pre-[tarea]
+3. Planificar en waves
+4. Ejecutar con Agent tool (model: sonnet)
+5. Verificar con evidencia real
+6. git commit + git push
+7. Documentar en .brain/history.md
+```
+
+### Skills (skills/)
+
+| Skill | Directorio | Funcion |
+|---|---|---|
+| arranque | `skills/arranque/` | Boot completo de sesion SM |
+| boris-workflow | `skills/boris-workflow/` | Flujo de desarrollo Boris v6.2 |
+| sypnose-create-plan | `skills/sypnose-create-plan/` | Protocolo SM para crear y enviar planes |
+| capcut-video | `skills/capcut-video/` | Crear videos en CapCut Desktop programaticamente |
+| claw-setup-configuration | `skills/claw-setup-configuration/` | Setup y configuracion OpenClaw |
+
+### Como activar commands y skills en un proyecto
+
+```bash
+cd /home/<USUARIO>/<proyecto>
+mkdir -p .claude/commands .claude/skills
+
+# Copiar todos los commands:
+cp /home/<USUARIO>/sypnose/.claude/commands/*.md .claude/commands/
+
+# O copiar solo los esenciales:
+cp /home/<USUARIO>/sypnose/.claude/commands/bios.md .claude/commands/
+cp /home/<USUARIO>/sypnose/.claude/commands/sypnose-create-plan.md .claude/commands/
+cp /home/<USUARIO>/sypnose/.claude/commands/workflow-obligatorio.md .claude/commands/
+
+# Copiar skills:
+cp -r /home/<USUARIO>/sypnose/skills/arranque .claude/skills/
+cp -r /home/<USUARIO>/sypnose/skills/boris-workflow .claude/skills/
+```
+
+### Verificacion
+```bash
+# Arrancar Claude y verificar que /bios existe:
+claude
+/bios
+# Debe ejecutar el protocolo de arranque completo
+```
+
+---
+
+## SECCION 20: Sincronizacion (sync-sypnose.sh)
+
+### Que es
+Script bash (124 lineas) que sincroniza commands, hooks y skills desde el repo
+GitHub a todos los proyectos activos en el servidor. Evita sobrescribir archivos
+personalizados usando hash SHA-256.
+
+### Archivo
+```
+sync-sypnose.sh        <- Raiz del repo (version local/Windows)
+prerequisites/sync-sypnose.sh  <- Version para servidor
+```
+
+### Que hace exactamente
+
+1. Obtiene el SHA del ultimo commit del repo GitHub
+2. Si no hay cambios desde la ultima sync -> sale sin hacer nada
+3. Si hay cambios: clona repo en /tmp/, copia files cambiados
+4. Detecta proyectos en el servidor via tmux list-sessions
+5. Para cada proyecto: copia commands/ y hooks/ (solo si SHA cambio)
+6. Envia notificacion por Telegram si algo falla
+7. Rota el log automaticamente (> 500 lineas -> .bak)
+
+### Instalacion
+
+```bash
+# Copiar al servidor:
+cp prerequisites/sync-sypnose.sh ~/scripts/sync-sypnose.sh
+chmod +x ~/scripts/sync-sypnose.sh
+
+# Crear directorio de logs:
+mkdir -p ~/logs
+
+# Configurar cron (cada 6 horas):
+(crontab -l 2>/dev/null; echo "0 */6 * * * bash ~/scripts/sync-sypnose.sh >> ~/logs/sypnose-sync.log 2>&1") | crontab -
+```
+
+### Verificar cron instalado
+
+```bash
+crontab -l | grep sync-sypnose
+# Debe mostrar: 0 */6 * * * bash ~/scripts/sync-sypnose.sh ...
+```
+
+### Ejecucion manual
+
+```bash
+bash ~/scripts/sync-sypnose.sh
+# Output esperado:
+# [FECHA] sync-sypnose START
+# [FECHA] sync-sypnose Cambios detectados: SHA_VIEJO -> SHA_NUEVO
+# [FECHA] sync-sypnose Sincronizados: proyecto1, proyecto2
+# [FECHA] sync-sypnose END
+```
+
+### Variables configurables (editar el script)
+
+| Variable | Valor por defecto | Descripcion |
+|---|---|---|
+| `REPO_URL` | github.com/radelqui/sypnose.git | Repo fuente |
+| `TELEGRAM_BOT_TOKEN` | (configurado) | Token del bot para alertas |
+| `TELEGRAM_CHAT_ID` | (configurado) | Chat ID para notificaciones |
+| `LOG_FILE` | ~/logs/sypnose-sync.log | Archivo de log |
+
+---
+
+## SECCION 21: Desktop App (Windows/Mac)
+
+### Diferencia servidor vs desktop
+
+| Aspecto | Servidor | Desktop (Windows/Mac) |
+|---|---|---|
+| Claude | Claude Code CLI en tmux | Claude Code CLI o Claude Desktop |
+| KB | Acceso directo localhost:18791 | Via tunel SSH + supergateway |
+| SSE | Acceso directo localhost:8095 | Via tunel SSH |
+| Rol | Arquitecto (ejecuta) | Service Manager (planifica, aprueba) |
+| /bios | Skill en Claude Code | Protocolo manual en CLAUDE.md |
+| sm-tmux | Instalado en servidor | Llamado via ssh-mcp |
+
+### CLAUDE-SM.md (desktop/CLAUDE-SM.md)
+
+Protocolo SM adaptado para Claude Desktop. Reemplaza los slash commands que
+no existen en Desktop.
+
+**Protocolo BIOS (equivalente a /bios):**
+```
+1. Leer MEMORY.md del proyecto
+2. Leer .brain/task.md y .brain/session-state.md
+3. kb_inbox_check para notificaciones
+4. Verificar arquitectos: tmux list-sessions (via ssh-mcp)
+5. Reportar en 3 lineas: donde estamos, que falta, que recomiendas
+```
+
+**Protocolo Crear Plan (equivalente a /sypnose-create-plan):**
+```
+1. INVESTIGAR: kb_search del tema, leer .brain/history.md
+2. CREAR PLAN con 6 etiquetas obligatorias
+3. MOSTRAR a Carlos — NO enviar sin aprobacion
+4. GUARDAR: kb_save key=task-[nombre] category=task
+5. ENVIAR: sm-tmux send <sesion> via ssh-mcp
+6. MONITOREAR: kb_search resultado
+```
+
+### MCP tunnels (desktop/sypnose-tunnels/)
+
+MCP que abre automaticamente los tuneles SSH al arrancar Claude Desktop.
+
+```bash
+# Instalar dependencias:
+cd desktop/sypnose-tunnels
+npm install
+
+# Configurar en claude_desktop_config.json (Windows: %APPDATA%\Claude\):
+{
+  "mcpServers": {
+    "sypnose-tunnels": {
+      "command": "node",
+      "args": ["C:/ruta/sypnose/desktop/sypnose-tunnels/index.js"],
+      "env": {
+        "SSH_HOST": "IP_SERVIDOR",
+        "SSH_PORT": "2024",
+        "SSH_USER": "gestoria",
+        "SSH_KEY_PATH": "C:/Users/USUARIO/.ssh/id_rsa"
+      }
+    }
+  }
+}
+```
+
+Tuneles que abre automaticamente: 18791 (KB HTTP), 18793 (KB SSE), 8317 (CLIProxy),
+8095 (SSE Hub), 3002 (Dashboard), 7681 (ttyd terminal web).
+
+### Config MCP completa para desktop
+
+Ver `prerequisites/MCP-CONFIGS.md` para la configuracion completa con:
+- sypnose-tunnels (tuneles automaticos)
+- knowledge-hub via supergateway (kb_save, kb_read, kb_search)
+- sypnose-channel (notificaciones SSE live)
+- ssh-mcp (ejecutar comandos en servidor)
+
+### Prerequisitos Windows/Mac
+
+```bash
+# Node.js >= 18
+node --version
+
+# supergateway (para knowledge-hub MCP)
+npm install -g supergateway
+
+# Clave SSH configurada:
+ssh -p <PUERTO> <USUARIO>@<IP>    # debe conectar sin password
+```
+
+---
+
+## SECCION 22: Flujo completo de instalacion desde cero
+
+Esta seccion muestra el orden exacto para instalar Sypnose completo en un servidor
+limpio Ubuntu 22/24. Sigue las secciones del manual en el orden correcto.
+
+### Prerequisitos del sistema
+
+```bash
+# Sistema base:
+sudo apt update && sudo apt install -y \
+    nodejs npm tmux git build-essential python3 python3-pip \
+    curl jq sqlite3
+
+# Verificar versiones:
+node --version   # >= 18
+tmux -V
+git --version
+```
+
+### Paso 1: Clonar el repo
+
+```bash
+cd /home/<USUARIO>
+git clone https://github.com/radelqui/sypnose.git
+cd sypnose
+```
+
+### Paso 2: Ejecutar instalador automatico
+
+```bash
+sudo bash install-sypnose-full.sh <USUARIO>
+```
+
+El instalador hace:
+- Instalar Knowledge Hub en /opt/knowledge-hub/
+- Instalar CLIProxy en /home/<USUARIO>/cliproxyapi/
+- Instalar Sypnose v5.2 en /opt/sypnose/
+- Instalar SSE Hub en /home/shared/sypnose-hub/
+- Configurar todos los servicios systemd
+- Arrancar todos los daemons
+
+### Paso 3: Editar clients.json con tus agentes
+
+```bash
+# Descubrir sesiones tmux existentes:
+tmux list-sessions -F '#{session_name}'
+
+# Editar config:
+nano /opt/sypnose/config/clients.json
+```
+
+Estructura de cada agente:
+```json
+{
+  "id": "mi-proyecto",
+  "tmux_session": "nombre-sesion-tmux",
+  "project_dir": "/home/<USUARIO>/mi-proyecto",
+  "client_name": "Mi Proyecto",
+  "industry": "descripcion"
+}
+```
+
+```bash
+# Verificar paths ANTES de guardar:
+ls -d /home/<USUARIO>/mi-proyecto
+tmux has-session -t nombre-sesion-tmux 2>/dev/null && echo OK || echo "NO EXISTE"
+
+# Reiniciar coordinator para que lea los cambios:
+sudo systemctl restart sypnose-coordinator
+journalctl -u sypnose-coordinator -n 15 --no-pager | grep -E "(probe|client)"
+```
+
+### Paso 4: Crear primer agente
+
+```bash
+# Crear sesion tmux:
+tmux new-session -d -s mi-proyecto -c /home/<USUARIO>/mi-proyecto
+
+# Preparar directorio del proyecto:
+cd /home/<USUARIO>/mi-proyecto
+mkdir -p .claude/hooks .claude/commands .brain
+
+# Copiar templates:
+cp /home/<USUARIO>/sypnose/prerequisites/templates/settings.local.json.example \
+   .claude/settings.local.json
+
+# Copiar hooks Boris de un proyecto existente (o del repo):
+cp /home/<USUARIO>/sypnose/prerequisites/boris/*.sh .claude/hooks/
+chmod +x .claude/hooks/*.sh
+
+# Copiar commands esenciales:
+cp /home/<USUARIO>/sypnose/.claude/commands/bios.md .claude/commands/
+cp /home/<USUARIO>/sypnose/.claude/commands/sypnose-create-plan.md .claude/commands/
+cp /home/<USUARIO>/sypnose/.claude/commands/workflow-obligatorio.md .claude/commands/
+
+# Inicializar .brain/:
+echo "# Task\nNo hay tarea activa." > .brain/task.md
+echo "# Session State\nNueva sesion." > .brain/session-state.md
+touch .brain/history.md .brain/done-registry.md
+
+# Crear CLAUDE.md del agente (usar template y adaptar):
+cp /home/<USUARIO>/sypnose/prerequisites/templates/CLAUDE.md.template CLAUDE.md
+nano CLAUDE.md  # Editar identidad, proyecto, stack, comandos verificacion
+```
+
+### Paso 5: Instalar Boris MCP
+
+```bash
+pip install mcp pydantic --break-system-packages
+mkdir -p ~/.boris
+cp /home/<USUARIO>/sypnose/prerequisites/boris/boris_mcp.py ~/.boris/
+claude mcp add boris --scope user -- python3 ~/.boris/boris_mcp.py
+```
+
+Verificar:
+```bash
+claude mcp list | grep boris
+# Debe mostrar: boris (python3 ~/.boris/boris_mcp.py)
+```
+
+### Paso 6: Arrancar daemons y verificar
+
+```bash
+# Estado de todos los servicios:
+systemctl status knowledge-hub cliproxyapi sypnose-coordinator sypnose-sse sypnose-hub
+
+# Health checks:
+curl -s http://localhost:18791/health | python3 -m json.tool
+curl -s http://localhost:8317/
+curl -s http://localhost:8095/health
+curl -s http://localhost:18795/health
+
+# Tests del coordinator:
+cd /opt/sypnose && npm test
+# Esperado: 12/12 passed ALL GREEN
+```
+
+### Paso 7: Probar /bios en el agente
+
+```bash
+# Arrancar Claude en la sesion del agente:
+tmux send-keys -t mi-proyecto "claude --dangerously-skip-permissions" Enter
+
+# Dar 10 segundos para que arranque, luego enviar comando:
+sleep 10
+tmux send-keys -t mi-proyecto "/bios" Enter
+
+# Ver output en tiempo real:
+tmux attach -t mi-proyecto
+# Ctrl+B, D para desconectar sin cerrar
+```
+
+Esperado: el agente ejecuta el protocolo BIOS, reporta estado, queda listo para recibir planes.
+
+### Paso 8: Configurar sync cron
+
+```bash
+cp /home/<USUARIO>/sypnose/sync-sypnose.sh ~/scripts/sync-sypnose.sh
+chmod +x ~/scripts/sync-sypnose.sh
+mkdir -p ~/logs
+
+(crontab -l 2>/dev/null; echo "0 */6 * * * bash ~/scripts/sync-sypnose.sh >> ~/logs/sypnose-sync.log 2>&1") | crontab -
+
+# Verificar:
+crontab -l | grep sync-sypnose
+```
+
+### Paso 9 (Desktop): Conectar SM desde Windows/Mac
+
+```bash
+# 1. Instalar supergateway:
+npm install -g supergateway
+
+# 2. Configurar claude_desktop_config.json con los 4 MCPs de prerequisites/MCP-CONFIGS.md
+
+# 3. Abrir Claude Desktop — sypnose-tunnels conecta automaticamente
+
+# 4. Verificar KB accesible:
+# En Claude Desktop: usar kb_list y verificar que devuelve entries
+```
+
+### Checklist final de instalacion
+
+```
+[ ] node --version >= 18
+[ ] tmux y git instalados
+[ ] curl http://localhost:18791/health -> {"status":"ok"}
+[ ] curl http://localhost:8317/ -> {"endpoints":[...]}
+[ ] curl http://localhost:8095/health -> {"status":"ok"}
+[ ] npm test -> 12/12 passed
+[ ] claude mcp list | grep boris -> boris presente
+[ ] /bios funciona en al menos un agente
+[ ] crontab -l | grep sync-sypnose -> cron configurado
+[ ] sm-tmux list -> sesiones activas visibles
+```
+
+---
+
 ## FASE 2 COMPLETADA: 2026-04-03
 
-- 6 componentes documentados con instalacion paso a paso
+- 6 componentes documentados con instalacion paso a paso (Secciones 11-16)
 - Knowledge Hub, CLIProxy, Boris, SSE Hub, Channel MCP, sm-tmux
 - Paquete corregido: sypnose-v52-corrected.tar.gz (40KB, 21/21 tests)
 - 5 subagentes paralelos completaron la documentacion
 - Gemini Gate aprobo el plan
 
-### Orden de instalacion en servidor limpio
-1. Node.js >= 18, tmux, git, build-essential
-2. Knowledge Hub (:18791) — el bus
-3. CLIProxy (:8317) — router de modelos
-4. Sypnose v5.2 (/opt/sypnose/) — el coordinator
-5. SSE Hub (:8095) — comunicacion live
-6. Channel MCP — cliente SSE
-7. Boris v6.2 — hooks por proyecto
-8. sm-tmux — envio de planes
-9. Crear agentes (tmux + .claude/ + .brain/ + CLAUDE.md)
+### Orden de instalacion en servidor limpio (22 secciones)
+1. Node.js >= 18, tmux, git, build-essential (Seccion 2)
+2. Knowledge Hub (:18791) — el bus (Seccion 11)
+3. CLIProxy (:8317) — router de modelos (Seccion 12)
+4. Sypnose v5.2 (/opt/sypnose/) — el coordinator (Secciones 6-10)
+5. SSE Hub (:8095) — comunicacion live (Seccion 14)
+6. Channel MCP — cliente SSE (Seccion 15)
+7. Boris v6.2 — hooks por proyecto (Seccion 13 y 18)
+8. sm-tmux — envio de planes (Seccion 16)
+9. Crear agentes (tmux + templates + .brain/ + CLAUDE.md) (Secciones 8, 17)
+10. Commands y skills (Seccion 19)
+11. Sync cron (Seccion 20)
+12. Desktop SM (Secciones 21, MCP-CONFIGS.md)
+13. Flujo completo end-to-end (Seccion 22)
 
-### Pendiente
-- Fase 3: Script install-sypnose-full.sh automatizado
+### Completado en esta fase (Secciones 17-22)
+- Templates para nuevos agentes (Seccion 17)
+- Boris MCP Server documentado con las 7 tools (Seccion 18)
+- Slash commands y skills: 19 commands, 5 skills documentados (Seccion 19)
+- Script sync-sypnose.sh con cron cada 6h (Seccion 20)
+- Desktop App Windows/Mac con CLAUDE-SM.md y sypnose-tunnels (Seccion 21)
+- Flujo completo 9 pasos desde cero con checklist final (Seccion 22)
