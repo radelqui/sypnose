@@ -452,6 +452,93 @@ fi
 
 
 # ============================================================
+# PASO 8c: MCPs core
+# ============================================================
+info "PASO 8c: MCPs core (7 paquetes)"
+
+# 5 MCPs npm global
+MCPS_NPM=(
+    "@upstash/context7-mcp"
+    "@modelcontextprotocol/server-memory"
+    "@modelcontextprotocol/server-sequential-thinking"
+    "@modelcontextprotocol/server-filesystem"
+    "chrome-devtools-mcp"
+)
+for pkg in "${MCPS_NPM[@]}"; do
+    if [ -d "/usr/lib/node_modules/$pkg" ]; then
+        ok "$pkg ya instalado"
+    else
+        npm install -g "$pkg" --silent 2>/dev/null && ok "$pkg instalado" || warn "$pkg fallo — instalar manualmente"
+    fi
+done
+
+# GitHub MCP (Docker)
+if command -v docker &>/dev/null; then
+    docker pull ghcr.io/github/github-mcp-server --quiet 2>/dev/null && ok "GitHub MCP (Docker) listo" || warn "GitHub MCP pull fallo"
+else
+    warn "Docker no instalado — GitHub MCP requiere Docker"
+fi
+
+# taskmaster-local (custom)
+TM_SRC="$SCRIPT_DIR/prerequisites/taskmaster-local"
+TM_DST="$HOME_DIR/.claude/mcp-servers/taskmaster-local"
+if [ -f "$TM_DST/index.js" ]; then
+    ok "taskmaster-local ya instalado"
+elif [ -f "$TM_SRC/index.js" ]; then
+    mkdir -p "$TM_DST"
+    cp "$TM_SRC"/* "$TM_DST/"
+    chown -R "$USER":"$USER" "$TM_DST"
+    su -c "cd $TM_DST && /usr/bin/npm install --silent" "$USER" 2>/dev/null
+    ok "taskmaster-local instalado"
+else
+    warn "taskmaster-local no encontrado en prerequisites/"
+fi
+
+# Registrar MCPs en Claude Code (como usuario)
+if su -c "which claude" "$USER" &>/dev/null; then
+    info "Registrando MCPs en Claude Code..."
+    su -c 'claude mcp add context7 --scope user -- node /usr/lib/node_modules/@upstash/context7-mcp/dist/index.js' "$USER" 2>/dev/null
+    su -c 'claude mcp add memory --scope user -- node /usr/lib/node_modules/@modelcontextprotocol/server-memory/dist/index.js' "$USER" 2>/dev/null
+    su -c "claude mcp add filesystem --scope user -- node /usr/lib/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js $HOME_DIR" "$USER" 2>/dev/null
+    su -c 'claude mcp add sequential-thinking --scope user -- node /usr/lib/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js' "$USER" 2>/dev/null
+    su -c 'claude mcp add chrome-devtools --scope user -- node /usr/lib/node_modules/chrome-devtools-mcp/build/src/index.js' "$USER" 2>/dev/null
+    su -c "claude mcp add taskmaster-local --scope user -- node $HOME_DIR/.claude/mcp-servers/taskmaster-local/index.js" "$USER" 2>/dev/null
+    ok "MCPs registrados en Claude Code"
+else
+    warn "Claude Code CLI no encontrado — registrar MCPs manualmente despues de instalar Claude Code"
+fi
+
+# ============================================================
+# PASO 8d: Commands, skills y hooks
+# ============================================================
+info "PASO 8d: Commands, skills y hooks a templates/"
+TPL="/opt/sypnose/templates"
+REPO="$SCRIPT_DIR"
+mkdir -p "$TPL/commands" "$TPL/skills" "$TPL/hooks"
+
+# Commands core
+if [ -d "$REPO/.claude/commands" ]; then
+    cp "$REPO"/.claude/commands/*.md "$TPL/commands/" 2>/dev/null
+    COUNT=$(ls "$TPL/commands/"*.md 2>/dev/null | wc -l)
+    ok "$COUNT commands copiados a templates/commands/"
+fi
+
+# Skills
+if [ -d "$REPO/skills" ]; then
+    cp -r "$REPO"/skills/* "$TPL/skills/" 2>/dev/null
+    ok "Skills copiados a templates/skills/"
+fi
+
+# Hooks Boris
+if [ -d "$REPO/.claude/hooks" ]; then
+    cp "$REPO"/.claude/hooks/*.sh "$TPL/hooks/" 2>/dev/null
+    chmod +x "$TPL/hooks/"*.sh 2>/dev/null
+    ok "Boris hooks copiados a templates/hooks/"
+fi
+
+chown -R "$USER":"$USER" "$TPL"
+
+# ============================================================
 # PASO 9: Systemd — registrar e instalar services Sypnose
 # ============================================================
 info "PASO 9: Configurar systemd services"
