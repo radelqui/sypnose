@@ -159,29 +159,34 @@ fi
 # PASO 3: Instalar CLIProxy (:8317)
 # ============================================================
 info "PASO 3: CLIProxy (:8317)"
+CLIP_DIR="/home/$USER/cliproxyapi"
+CLIP_URL="https://github.com/radelqui/sypnose/releases/download/v5.2.0/cli-proxy-api-linux-amd64"
+CDIR="$SCRIPT_DIR/prerequisites/cliproxy"
 if curl -sf http://localhost:8317/ &>/dev/null; then
     ok "CLIProxy ya activo en :8317"
 else
-    CDIR="$SCRIPT_DIR/prerequisites/cliproxy"
+    mkdir -p "$CLIP_DIR/logs"
     if [ -f "$CDIR/cli-proxy-api" ]; then
-        mkdir -p /home/$USER/cliproxyapi/logs
-        cp "$CDIR"/cli-proxy-api /home/$USER/cliproxyapi/
-        [ -f "$CDIR/config.yaml.example" ] && cp "$CDIR/config.yaml.example" /home/$USER/cliproxyapi/config.yaml
-        [ -f "$CDIR/config.yaml" ] && cp "$CDIR/config.yaml" /home/$USER/cliproxyapi/config.yaml
-        chmod +x /home/$USER/cliproxyapi/cli-proxy-api
-        chown -R "$USER":"$USER" /home/$USER/cliproxyapi
-        # Instalar systemd service
-        if [ -f "$CDIR/cliproxyapi.service" ] && [ ! -f /etc/systemd/system/cliproxyapi.service ]; then
-            sed -e "s|User=.*|User=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$CDIR/cliproxyapi.service" \
-                > /etc/systemd/system/cliproxyapi.service
-            ok "cliproxyapi.service instalado"
-        fi
-        warn "CLIProxy copiado — EDITAR config.yaml con tus API keys"
+        cp "$CDIR/cli-proxy-api" "$CLIP_DIR/"
+        ok "CLIProxy copiado desde prerequisites/"
+    elif [ -f "$CLIP_DIR/cli-proxy-api" ]; then
+        ok "CLIProxy binario ya existe"
     else
-        warn "CLIProxy binario no encontrado. Descargar de GitHub Releases."
+        info "Descargando CLIProxy desde GitHub Releases..."
+        curl -L -o "$CLIP_DIR/cli-proxy-api" "$CLIP_URL" 2>/dev/null
+        [ -s "$CLIP_DIR/cli-proxy-api" ] && ok "CLIProxy descargado" || warn "Descarga fallo: $CLIP_URL"
+    fi
+    chmod +x "$CLIP_DIR/cli-proxy-api" 2>/dev/null
+    if [ ! -f "$CLIP_DIR/config.yaml" ]; then
+        [ -f "$CDIR/config.yaml.example" ] && cp "$CDIR/config.yaml.example" "$CLIP_DIR/config.yaml"
+        warn "EDITAR $CLIP_DIR/config.yaml con tus API keys"
+    fi
+    chown -R "$USER":"$USER" "$CLIP_DIR"
+    if [ -f "$CDIR/cliproxyapi.service" ] && [ ! -f /etc/systemd/system/cliproxyapi.service ]; then
+        sed -e "s|User=.*|User=$USER|" -e "s|/home/gestoria|/home/$USER|g" "$CDIR/cliproxyapi.service" > /etc/systemd/system/cliproxyapi.service
+        ok "cliproxyapi.service instalado"
     fi
 fi
-
 
 # ============================================================
 # PASO 4: Instalar Sypnose v5.2 desde paquete
