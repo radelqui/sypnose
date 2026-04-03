@@ -647,6 +647,9 @@ class CoordinatorLoop {
         const budgets = {};
         for (const c of this.clients) { const cost = await kbRead(`cost:${c.id}:${new Date().toISOString().split('T')[0]}`); budgets[c.id] = { cost: (cost?.total || 0).toFixed(4), calls: cost?.calls || 0, free: cost?.calls ? Math.round(100 * (cost.free_calls || 0) / cost.calls) + '%' : '100%' }; }
         yield { y: 5, phase: 'budgets', data: budgets }; emitEvent({ type: 'budgets', data: budgets });
+        // Heartbeat + persist flags al KB (cada tick)
+        await kbSave("heartbeat:coordinator", { ts: new Date().toISOString(), tick: this.tick, uptime: Math.round(process.uptime()), clients: this.clients.length, version: VERSION });
+        if (this.tick % 10 === 0) await kbSave("policies:flags", gFlags);
         if (await flagOn('MAGIC_DOCS') && this.tick % 60 === 0) {
           for (const c of this.clients) { if (!tmuxAlive(c.tmux_session)) continue; const out = tmuxCapture(c.tmux_session, 2); if (out?.trim().endsWith('$')) tmuxSend(c.tmux_session, 'find . -name "*.md" -exec grep -l "MAGIC DOC" {} \\; 2>/dev/null | head -3'); }
           yield { y: 6, phase: 'magic_docs' };

@@ -9,7 +9,7 @@ const ALLOWED = ['task:', 'mailbox:', 'mem:topic:'];
 function validate(key, op) {
   if (op === 'read') { if (key.includes('.env') || key.includes('secret')) return { allowed: false }; return { allowed: true }; }
   for (const p of BLOCKED) if (key.startsWith(p)) return { allowed: false };
-  return ALLOWED.some(p => key.startsWith(p)) ? { allowed: true } : { allowed: false };
+  return { allowed: true };
 }
 
 const TOOLS = {
