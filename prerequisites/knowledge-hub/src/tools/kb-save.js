@@ -21,17 +21,31 @@ export function kbSave({ key, value, category = 'general', project = null }) {
     `).run(project);
   }
 
-  const result = db.prepare(`
-    INSERT INTO knowledge (key, value, category, project, tier)
-    VALUES (?, ?, ?, ?, 'HOT')
-    ON CONFLICT(key, project) DO UPDATE SET
-      value = excluded.value,
-      category = excluded.category,
-      tier = 'HOT',
-      access_count = access_count + 1,
-      updated_at = datetime('now'),
-      last_accessed_at = datetime('now')
-  `).run(key, value, category, project);
+  // FIX: SQLite treats NULL != NULL in UNIQUE indexes, so ON CONFLICT(key, project)
+  // never fires when project IS NULL. Use explicit find + update/insert instead.
+  const existing = db.prepare(
+    'SELECT id FROM knowledge WHERE key = ? AND project IS ?'
+  ).get(key, project);
+
+  let result;
+  if (existing) {
+    result = db.prepare(`
+      UPDATE knowledge SET
+        value = ?,
+        category = ?,
+        tier = 'HOT',
+        access_count = access_count + 1,
+        updated_at = datetime('now'),
+        last_accessed_at = datetime('now')
+      WHERE id = ?
+    `).run(value, category, existing.id);
+    result.lastInsertRowid = existing.id;
+  } else {
+    result = db.prepare(`
+      INSERT INTO knowledge (key, value, category, project, tier)
+      VALUES (?, ?, ?, ?, 'HOT')
+    `).run(key, value, category, project);
+  }
 
   // Trigger inbox + Telegram webhook for notifications
   if (category === 'notification') {
