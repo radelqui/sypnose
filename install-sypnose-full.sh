@@ -112,7 +112,7 @@ elif [ -d "$PREREQ_KB/src" ]; then
     mkdir -p /opt/knowledge-hub/data
     chown "$USER":"$USER" /opt/knowledge-hub/data
     su -c "cd /opt/knowledge-hub && /usr/bin/npm install --silent" "$USER" || fail "npm install KB fallo"
-    SVC="$SCRIPT_DIR/prerequisites/knowledge-hub.service"
+    SVC="$PREREQ_KB/knowledge-hub.service"
     if [ -f "$SVC" ]; then
         sed "s|<USUARIO>|$USER|g" "$SVC" > /etc/systemd/system/knowledge-hub.service
     fi
